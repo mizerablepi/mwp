@@ -2,4 +2,6 @@ from flask import Flask,render_template
 
 app = Flask(__name__)
 
-render_template('app.html')
+@app.route('/')
+def home():
+    render_template('app.html')
