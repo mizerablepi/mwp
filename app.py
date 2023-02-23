@@ -1,4 +1,5 @@
-from flask import Flask
+from flask import Flask,render_template
 
-if __name__ == '__main__':
-    
+app = Flask(__name__)
+
+render_template('app.html')
