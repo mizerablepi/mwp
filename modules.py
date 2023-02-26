@@ -1,11 +1,12 @@
 import nltk
+import numpy as np
 import re
 import os
-import openai
 from nltk.corpus import stopwords, wordnet
 from nltk.stem import WordNetLemmatizer
 from nltk.tokenize import word_tokenize, sent_tokenize
 from nltk import download, data, pos_tag
+import openai
 from collections import Counter
 from itertools import permutations
 from os.path import abspath, exists
@@ -41,42 +42,20 @@ def is_number(word):
   return True
 
 
-def pos_tag_all(lst, with_word=True, include_stop_words=True):
+def pos(word_list):
   '''
     Use part of speech tagging to alter perceptions of vocabulary patterns in questions.
     '''
-  output_array = []
-  for sentence in lst:
-    temp_list = []
-    for i in sent_tokenize(sentence):
-      word_list = i.split()
-      if not include_stop_words:
-        word_list = [w for w in word_list if not w in STOPWORDS]
+  temp_list = []
+  tag_indices = {}
 
-      tag_indices = {}
-      for j, word in enumerate(word_list):
-        if match(r"\<.*\>", word) is not None:
-          # Word is a tagged number
-          tag_indices[j] = word
-
-      for j, (word, pos) in enumerate(pos_tag(word_list)):
-        if j in tag_indices.keys():
-          temp_list.append(tag_indices[j])
-        elif is_number(word):
-          temp_list.append(word)
-        else:
-          if with_word:
-            temp_list.append(f"({word} {pos})")
-          else:
-            temp_list.append(f"{pos}")
-
-      pos_sentence = ' '.join(temp_list)
-      pos_sentence = sub(r"\.\s+\.", '.', pos_sentence)
-      pos_sentence = sub(r"\?\s+\.", '?', pos_sentence)
-      pos_sentence = sub(r"\$\s+\$", '$', pos_sentence)
-
-    output_array.append(pos_sentence)
-  return output_array
+  for j, (word, pos) in enumerate(pos_tag(word_list)):
+    temp_list.append(f"({word} {pos})")
+  pos_sentence = ' '.join(temp_list)
+  pos_sentence = sub(r"\.\s+\.", '.', pos_sentence)
+  pos_sentence = sub(r"\?\s+\.", '?', pos_sentence)
+  pos_sentence = sub(r"\$\s+\$", '$', pos_sentence)
+  return pos_sentence
 
 
 def lemmatize(lst):
@@ -266,8 +245,10 @@ def exclusive_tagging(text, equation):
 
 
 def generate_text(prompt):
+  color = ''
   if is_safe(prompt) != True:
-    return "INTERNAL ERROR!"
+    color = 'red'
+    return "INTERNAL ERROR!", color
 
   my_secret = os.getenv('MY_SECRET')
   openai.api_key = my_secret + 'REMOVE_ME'
@@ -283,12 +264,38 @@ def generate_text(prompt):
       presence_penalty=-0.6,
     )
   except:
-    return 'INTERNAL KEY ERROR!'
+    color = 'red'
+    return 'INTERNAL ERROR!', color
   message = completions.choices[0].text
-  return message.strip()
+  return message.strip(), color
 
 
 def is_safe(text):
   clean_text = re.sub('[.?,!]', '', text)
   result = re.findall('\s\d*\s', clean_text)
   return True if len(result) >= 2 else False
+
+
+def preprocess(input):
+  text = re.sub('[,!()?]', '', input)
+  sentence = text.split(". ")
+  rm_sentence = remove_stopwords(sentence)
+  l_sentence = lemmatize(rm_sentence)
+  temp = ''
+  for i in l_sentence:
+    temp = " ".join([temp, i])
+  untagged_sentence = label_selective_tagging(temp)
+  untagged_sentence = untagged_sentence.strip()
+  final = pos(list(untagged_sentence.split(' ')))
+  return text, rm_sentence, l_sentence, untagged_sentence, final
+
+
+def getPositionEncoding(seq_len, n=1000):
+  d = seq_len
+  P = np.zeros((seq_len, d))
+  for k in range(seq_len):
+    for i in np.arange(int(d / 2)):
+      denominator = np.power(n, 2 * i / d)
+      P[k, 2 * i] = np.sin(k / denominator)
+      P[k, 2 * i + 1] = np.cos(k / denominator)
+  return P
