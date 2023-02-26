@@ -251,7 +251,7 @@ def generate_text(prompt):
     return "INTERNAL ERROR!", color
 
   my_secret = os.getenv('MY_SECRET')
-  openai.api_key = my_secret + 'REMOVE_ME'
+  openai.api_key = my_secret
   try:
     completions = openai.Completion.create(
       engine="text-davinci-003",
